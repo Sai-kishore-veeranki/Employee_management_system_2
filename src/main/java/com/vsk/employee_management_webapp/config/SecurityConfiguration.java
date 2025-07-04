@@ -59,6 +59,7 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll() // Allow auth endpoints (login, register)
                         .requestMatchers("/api/register/**").permitAll() // Keep register public
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll() // Allow Swagger UI
                         .anyRequest().authenticated() // All other requests require authentication
                 )
         // .formLogin(Customizer.withDefaults()) // Remove formLogin
