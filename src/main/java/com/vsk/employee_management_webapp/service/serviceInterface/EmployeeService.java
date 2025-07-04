@@ -8,10 +8,34 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 public interface EmployeeService {
+
+    /**
+     * Retrieve all employee records
+     */
     List<EmployeeResponse> getAllEmployees();
+
+    /**
+     * Persist a new employee
+     */
     EmployeeResponse saveEmployee(EmployeeRequest employeeRequest);
+
+    /**
+     * Retrieve a specific employee by ID
+     */
     EmployeeResponse getEmployeeById(long id);
+
+    /**
+     * Remove an employee by ID
+     */
     void deleteEmployeeById(long id);
-    Page<EmployeeResponse> findPaginated(Pageable pageable); // Modern pagination
-    EmployeeResponse updateEmployee(long id, EmployeeRequest employeeRequest); // Added update method
+
+    /**
+     * Retrieve paginated employees for UI or API consumption
+     */
+    Page<EmployeeResponse> getPaginatedEmployees(Pageable pageable); // Renamed for semantic clarity
+
+    /**
+     * Update an existing employee's details
+     */
+    EmployeeResponse updateEmployee(long id, EmployeeRequest employeeRequest);
 }

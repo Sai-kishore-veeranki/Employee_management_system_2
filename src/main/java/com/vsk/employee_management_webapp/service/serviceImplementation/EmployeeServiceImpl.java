@@ -2,6 +2,7 @@ package com.vsk.employee_management_webapp.service.serviceImplementation;
 
 import com.vsk.employee_management_webapp.dto.EmployeeRequest;
 import com.vsk.employee_management_webapp.dto.EmployeeResponse;
+import com.vsk.employee_management_webapp.exception.ResourceNotFoundException;
 import com.vsk.employee_management_webapp.model.Employee;
 import com.vsk.employee_management_webapp.repository.EmployeeRepository;
 import com.vsk.employee_management_webapp.service.serviceInterface.EmployeeService;
@@ -10,97 +11,107 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-@Slf4j // For SLF4J logging
+@Slf4j
 public class EmployeeServiceImpl implements EmployeeService {
 
     private final EmployeeRepository employeeRepository;
 
     public EmployeeServiceImpl(EmployeeRepository employeeRepository) {
         this.employeeRepository = employeeRepository;
-        log.info("EmployeeServiceImpl initialized.");
+        log.debug("EmployeeServiceImpl initialized.");
     }
 
+    /**
+     * Fetch all employees in non-paginated format
+     */
     @Override
     public List<EmployeeResponse> getAllEmployees() {
-        log.info("Fetching all employees.");
-        return employeeRepository.findAll().stream()
+        log.info("Fetching all employee records.");
+        return employeeRepository.findAll()
+                .stream()
                 .map(this::mapToEmployeeResponse)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Save a new employee to the database
+     */
     @Override
-    public EmployeeResponse saveEmployee(EmployeeRequest employeeRequest) {
-        log.debug("Attempting to save employee: {}", employeeRequest.email());
-        Employee employee = new Employee(
-                employeeRequest.firstName(),
-                employeeRequest.lastName(),
-                employeeRequest.email()
-        );
+    @Transactional
+    public EmployeeResponse saveEmployee(EmployeeRequest request) {
+        log.debug("Saving employee: {}", request.email());
+        Employee employee = new Employee(request.firstName(), request.lastName(), request.email());
         Employee savedEmployee = employeeRepository.save(employee);
-        log.info("Employee saved successfully with ID: {}", savedEmployee.getId());
+        log.info("Saved employee with ID {}", savedEmployee.getId());
         return mapToEmployeeResponse(savedEmployee);
     }
 
+    /**
+     * Fetch an employee by ID
+     */
     @Override
     public EmployeeResponse getEmployeeById(long id) {
         log.debug("Fetching employee by ID: {}", id);
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.warn("Employee not found for ID: {}", id);
-                    return new RuntimeException("Employee not found for id :: " + id);
-                });
-        log.info("Employee found with ID: {}", id);
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
+        log.info("Found employee: {}", employee.getEmail());
         return mapToEmployeeResponse(employee);
     }
 
+    /**
+     * Delete employee by ID
+     */
     @Override
+    @Transactional
     public void deleteEmployeeById(long id) {
-        log.debug("Attempting to delete employee by ID: {}", id);
-        if (!employeeRepository.existsById(id)) {
-            log.warn("Attempted to delete non-existent employee with ID: {}", id);
-            throw new RuntimeException("Employee not found for id :: " + id);
-        }
-        this.employeeRepository.deleteById(id);
-        log.info("Employee deleted successfully with ID: {}", id);
+        log.debug("Deleting employee with ID: {}", id);
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
+        employeeRepository.delete(employee);
+        log.info("Deleted employee: {}", employee.getEmail());
     }
 
+    /**
+     * Return paginated employee data
+     */
     @Override
-    public Page<EmployeeResponse> findPaginated(Pageable pageable) {
-        log.debug("Fetching paginated employees - Page: {}, Size: {}, Sort: {}",
-                pageable.getPageNumber(), pageable.getPageSize(), pageable.getSort());
-        Page<Employee> employeePage = this.employeeRepository.findAll(pageable);
-        List<EmployeeResponse> employeeResponses = employeePage.getContent().stream()
+    public Page<EmployeeResponse> getPaginatedEmployees(Pageable pageable) {
+        log.debug("Fetching paginated employees - Page: {}, Size: {}", pageable.getPageNumber(), pageable.getPageSize());
+        Page<Employee> page = employeeRepository.findAll(pageable);
+        List<EmployeeResponse> responses = page.stream()
                 .map(this::mapToEmployeeResponse)
                 .collect(Collectors.toList());
-        log.info("Retrieved {} employees for page {} of {}", employeeResponses.size(),
-                employeePage.getNumber() + 1, employeePage.getTotalPages());
-        return new PageImpl<>(employeeResponses, pageable, employeePage.getTotalElements());
+        return new PageImpl<>(responses, pageable, page.getTotalElements());
     }
 
+    /**
+     * Update employee record
+     */
     @Override
-    public EmployeeResponse updateEmployee(long id, EmployeeRequest employeeRequest) {
-        log.debug("Attempting to update employee with ID: {}", id);
-        Employee existingEmployee = employeeRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.warn("Employee not found for update with ID: {}", id);
-                    return new RuntimeException("Employee not found for id :: " + id);
-                });
+    @Transactional
+    public EmployeeResponse updateEmployee(long id, EmployeeRequest request) {
+        log.debug("Updating employee with ID: {}", id);
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", id));
 
-        existingEmployee.setFirstName(employeeRequest.firstName());
-        existingEmployee.setLastName(employeeRequest.lastName());
-        existingEmployee.setEmail(employeeRequest.email());
+        employee.setFirstName(request.firstName());
+        employee.setLastName(request.lastName());
+        employee.setEmail(request.email());
 
-        Employee updatedEmployee = employeeRepository.save(existingEmployee);
-        log.info("Employee updated successfully with ID: {}", updatedEmployee.getId());
-        return mapToEmployeeResponse(updatedEmployee);
+        Employee updated = employeeRepository.save(employee);
+        log.info("Updated employee: {} (ID: {})", updated.getEmail(), updated.getId());
+        return mapToEmployeeResponse(updated);
     }
 
+    /**
+     * Map entity to DTO
+     */
     private EmployeeResponse mapToEmployeeResponse(Employee employee) {
         return new EmployeeResponse(employee.getId(), employee.getFirstName(), employee.getLastName(), employee.getEmail());
     }
